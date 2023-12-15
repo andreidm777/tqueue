@@ -47,10 +47,12 @@ function tube.create_tube(name, opts)
     })
     space:create_index('status', {
         type          = 'tree',
+        unique        = false,
         parts         = {i_status, 'string', i_ready_at, 'number', i_pri, 'number'}
     })
     space:create_index('ttl', {
         type          = 'tree',
+        unique        = false,
         parts         = {i_ttl, 'number'}
     })
     return space

@@ -133,20 +133,18 @@ function tube:take(timeout)
         return self.driver:normalize_task(task)
     end
     
-    local diff = timeout
-
-    while diff > 0 do
-        local started = fiber.time()  
+    local started = fiber.time() + timeout
+    while true do
         task = self.driver:take()
 
         if task ~= nil then
             self:stat('take', 1)
             return self.driver:normalize_task(task)
         end
-
-        local elapsed = fiber.time() - started
+        if fiber.time() >= started then
+            break
+        end
         fiber.sleep(0.001)
-        diff = fiber.time() - started
     end
 end
 
@@ -156,7 +154,7 @@ function tube:ack(id)
     end
     -- #TODO: add check is state is taken
     local result = self.driver:normalize_task(
-        self.driver:delete(id)
+        self.driver:ack(id)
     )
     self:stat('ack', 1)
     return result
