@@ -57,6 +57,7 @@ function tube.create_tube(name, opts)
 end
 
 function tube.new(name, opts)
+    opts = opts or {}
     return setmetatable({
         name = name,
         space = box.space[name],

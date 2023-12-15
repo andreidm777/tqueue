@@ -33,6 +33,8 @@ function M.queue_loads()
     if not space then
         queues.create()
     end
+    
+    space = box.space[queues.SPACE_QUEUES]
 
     for _, i in space.index.names:pairs{} do
         local opts = {

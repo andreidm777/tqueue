@@ -23,7 +23,14 @@ local function check_state()
     return false
 end
 
+tube.statistics = {}
+
+function tube:stat(name, count)
+    self.statistics[name] = (self.statistics[name] or 0) + count 
+end
+
 function tube.new(name, type_queue, opts)
+    opts = opts or {}
     return setmetatable({
         driver = drivers[type_queue].new(name, opts),
         name   = name,
@@ -110,6 +117,7 @@ function tube:put(data, opts)
     end
     opts = opts or {}
     local task = self.driver:put(data, opts)
+    self:stat('put',1)
     return self.driver:normalize_task(task)
 end
 
@@ -119,22 +127,26 @@ function tube:take(timeout)
     end
     timeout = timeout and tonumber(timeout) or constant.TIMEOUT_TAKE_DEFAULT
     local task = self.driver:take()
+    
     if task ~= nil then
+        self:stat('take', 1)
         return self.driver:normalize_task(task)
     end
     
-    local started = fiber.time()
+    local diff = timeout
 
-    while timeout > 0 do  
+    while diff > 0 do
+        local started = fiber.time()  
         task = self.driver:take()
 
         if task ~= nil then
+            self:stat('take', 1)
             return self.driver:normalize_task(task)
         end
 
         local elapsed = fiber.time() - started
         fiber.sleep(0.001)
-        timeout = timeout > elapsed and timeout - elapsed or 0
+        diff = fiber.time() - started
     end
 end
 
@@ -146,7 +158,7 @@ function tube:ack(id)
     local result = self.driver:normalize_task(
         self.driver:delete(id)
     )
-
+    self:stat('ack', 1)
     return result
 end
 
@@ -154,6 +166,7 @@ function tube:release(id, opts)
     if not check_state() then
         return nil
     end
+    self:stat('release', 1)
     return self.driver:normalize_task(self.driver:release(id, opts))
 end
 
@@ -164,7 +177,9 @@ function tube:peek(id)
     local task = self.driver:peek(id)
     if task == nil then
         error(("Task %s not found"):format(tostring(id)))
+        return
     end
+    self:stat('peek', 1)
     return self.driver:normalize_task(task)
 end
 
@@ -173,6 +188,9 @@ function tube:bury(id)
         return nil
     end
     local task = self.driver:bury(id)
+    if task then
+        self:stat('peek', 1)
+    end
     return task and self.driver:normalize_task(task)
 end
 
@@ -181,6 +199,7 @@ function tube:kick(count)
         return nil
     end
     count = count or 1
+    self:stat('kick', 1)
     return self.driver:kick(count)
 end
 
@@ -188,6 +207,7 @@ function tube:delete(id)
     if not check_state() then
         return nil
     end
+    self:stat('delete', 1)
     return self.driver:normalize_task(self.driver:delete(id))
 end
 
