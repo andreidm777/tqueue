@@ -1,15 +1,19 @@
+-- not capability with driver for python and go
+-- but can bwst work with slow replication
+
 require('strict').on()
 
 local constant = require('queue.constant')
 local state = require('queue.state')
 local fiber  = require('fiber')
 local log = require('log')
+local uuid = require('uuid')
 
 local tube={}
 tube.__index=tube
 
-local FIFOTTL_FORMAT = {
-    {name = 'task_id', type = 'unsigned'},
+local XFIFOTTL_FORMAT = {
+    {name = 'task_id', type = 'uuid'},
     {name = 'status', type = 'string'},
     {name = 'ttl', type = 'number'},
     {name = 'ready_at', type = 'number'},
@@ -31,7 +35,7 @@ function tube.create_tube(name, opts)
     opts = opts or {}
     local if_not_exists      = opts.if_not_exists or false
 
-    space_opts.format = FIFOTTL_FORMAT
+    space_opts.format = XFIFOTTL_FORMAT
 
     local space = box.space[name]
     if if_not_exists and space then
@@ -43,7 +47,7 @@ function tube.create_tube(name, opts)
     space:create_index('primary', {
         unique        = true,
         type          = 'tree',
-        parts         = {i_task_id, 'unsigned'}
+        parts         = {i_task_id, 'uuid'}
     })
     space:create_index('status', {
         type          = 'tree',
@@ -70,13 +74,12 @@ function tube.new(name, opts)
 end
 
 function tube:start_worker(cancel_func)
-    fiber.self():name('ttl_check_'..self.name)
     while true do
-        -- use pcall because election state change early read_only
-        pcall(function()
+        pcall(function() 
             local now = fiber.time()
             -- remove ttl expired task
             for _, t in self.space.index.ttl:pairs({now}, {iterator = box.index.LT}) do
+                
                 if cancel_func() then
                     return
                 end
@@ -107,8 +110,7 @@ function tube:put(data, opts)
 
     local now = fiber.time()
 
-    local max = self.space.index.primary:max()
-    local id = max and max[i_task_id] + 1 or 0
+    local id = uuid.new()
 
     local tuple  = {
         id,

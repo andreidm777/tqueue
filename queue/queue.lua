@@ -9,11 +9,12 @@ local tube = {}
 tube.__index = tube
 
 local drivers = {
-    fifottl = require('queue.drivers.fifottl')
+    fifottl = require('queue.drivers.fifottl'),
+    xfifottl = require('queue.drivers.xfifottl')
 }
 
 local function check_state()
-    if (box.info.election.state == constant.LEADER and box.info.ro == true) then
+    if (box.info.election.state == constant.LEADER and box.info.ro == false) then
         return true
     end
     if (box.cfg.election_mode == 'off' and box.info.ro == false) then
@@ -62,10 +63,11 @@ function tube:start_worker()
         return
     end
     local worker = supervisor.register_worker(self.name, function(cancel_func)
+        fiber.self():name('worker_'..self.name)
         self.driver:start_worker(cancel_func)
     end)
     if box.info.election.state == 'leader' then
-        supervisor.start_worker()
+        supervisor.start_worker(worker)
     end
 end
 

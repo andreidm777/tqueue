@@ -18,15 +18,13 @@ M.workers = {}
 function M.register_worker(name, func)
     if M.workers[name] then
         log.warn(name.." allready exists")
-        return
+        return M.workers[name]
     end
 
-    M.workers = {
-        name = {
+    M.workers[name] = {
             name = name,
             func = func,
             state = PENDING,
-        }
     }
 
     return M.workers[name]
@@ -49,7 +47,7 @@ function M.start_worker(worker)
     end
     worker.state = RUNNING
     worker.chan = fiber.channel()
-    worker.fiber_id = fiber.create(func, M.cancel(worker))
+    worker.fiber_id = fiber.create(worker.func, M.cancel(worker))
 end
 
 function M.stop_worker(name)
@@ -82,29 +80,6 @@ function M.stop_workers()
     for name, worker in ipairs(M.workers) do
         M.stop_worker(worker)
     end
-end
-
-
-if box.election_mode == 'off' then
-    while true do
-        if not box.info.ro then
-            M.start_workers()
-            box.ctl.wait_ro()
-        else
-            M.stop_workers()
-            box.ctl.wait_rw()
-        end
-    end
-else
-    box.ctl.on_election(function()
-        if not M.in_reload then
-            if box.info.election.state == constant.LEADER then
-                M.start_workers()
-            else
-                M.stop_workers()
-            end
-        end
-    end)
 end
 
 return M

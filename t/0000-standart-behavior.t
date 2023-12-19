@@ -10,6 +10,8 @@ local fiber = require('fiber')
 local os = require('os')
 local log = require('log')
 
+local console = require('console')
+
 local test = require('tap').test()
 
 test:plan(4)
@@ -41,7 +43,6 @@ test:test('test put in queue', function(test)
             test:is(task[1], i - 1, 'task id ok' .. i)
             test:ok(queue.tube.test_msg:ack(i - 1), 'ack task' .. i)
         else
-            log.info(box.space.test_msg:select{})
             test:isnil(task, 'task not exists')
         end
     end
@@ -49,4 +50,5 @@ test:test('test put in queue', function(test)
     test:is(queue.tube.test_msg.statistics['take'],15,'take ack')
 end)
 
+--console.start()
 os.exit(test:check() and 0 or 1)

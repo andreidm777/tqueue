@@ -1,8 +1,11 @@
 require('strict').on()
 
 local constant = require('queue.constant')
-local queue = require('queue.queue')
-local queues = require('queue.db.queues')
+local queue    = require('queue.queue')
+local queues   = require('queue.db.queues')
+local log      = require('log')
+local sup      = require('queue.fibers.supervisor')
+local fiber    = require('fiber')
 
 local M={}
 M.__index=M
@@ -40,13 +43,42 @@ function M.queue_loads()
         local opts = {
             ttl = i[3],
             ttr = i[4],
-        }   
+        }
+        log.info('start workers'..i[1])
         local qu = queue.new(i[1], i[2], opts)
         M.tube[i[1]] = qu
         qu:start_worker()
     end
 end
 
-M.queue_loads()
+
+fiber.create(function()
+    fiber.self():name('election_mode_checker')
+    if box.election_mode == 'off' then
+        while true do
+            if not box.info.ro then
+                M.queue_loads()
+                sup.start_workers()
+                box.ctl.wait_ro()
+            else
+                sup.stop_workers()
+                box.ctl.wait_rw()
+            end
+        end
+    else
+        box.ctl.on_election(function()
+            if not sup.in_reload then
+                if box.info.election.state == constant.LEADER then
+                    box.ctl.wait_rw()
+                    M.queue_loads()
+                    sup.start_workers()
+                else
+                    sup.stop_workers()
+                end
+            end
+        end)
+    end
+end)
+
 
 return M
