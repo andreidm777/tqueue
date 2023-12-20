@@ -28,6 +28,9 @@ end
 
 function M.add_queue(name, queue_type, opts)
     opts = opts or {}
+    if not box.space[M.SPACE_QUEUES] then
+        M.create()
+    end
     local ttl = opts.ttl and tonumber(opts.ttl) or constant.MAX_TIMEOUT
     box.space[M.SPACE_QUEUES]:insert{
         name, queue_type, ttl, opts.ttr and tonumber(opts.ttr) or constant.TTR_DEFAULT
